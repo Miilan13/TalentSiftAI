@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../hooks/useAuth';
+import { applicationsAPI } from '../../services/api';
 import { 
   Users, 
   Search, 
   Filter, 
-  Eye, 
   Download,
   CheckCircle,
   XCircle,
@@ -17,78 +18,72 @@ import {
 } from 'lucide-react';
 
 const HRApplications = () => {
+  const { isAuthenticated, user } = useAuth();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [jobFilter, setJobFilter] = useState('all');
+  const [stats, setStats] = useState({
+    total: 0,
+    pending: 0,
+    interviewed: 0,
+    shortlisted: 0,
+    hired: 0,
+    rejected: 0
+  });
 
-  // Mock data - replace with API call
+  // Fetch applications from API
   useEffect(() => {
-    const mockApplications = [
-      {
-        id: 1,
-        candidateName: 'John Smith',
-        candidateEmail: 'john.smith@email.com',
-        candidatePhone: '+1 (555) 123-4567',
-        candidateLocation: 'New York, NY',
-        jobTitle: 'Senior Frontend Developer',
-        appliedDate: '2025-08-01',
-        status: 'pending',
-        experience: 5,
-        skills: ['React', 'JavaScript', 'TypeScript', 'CSS'],
-        resumeUrl: '#',
-        rating: 0
-      },
-      {
-        id: 2,
-        candidateName: 'Sarah Johnson',
-        candidateEmail: 'sarah.johnson@email.com',
-        candidatePhone: '+1 (555) 234-5678',
-        candidateLocation: 'San Francisco, CA',
-        jobTitle: 'Backend Engineer',
-        appliedDate: '2025-07-30',
-        status: 'interview',
-        experience: 3,
-        skills: ['Node.js', 'Python', 'MongoDB', 'AWS'],
-        resumeUrl: '#',
-        rating: 4
-      },
-      {
-        id: 3,
-        candidateName: 'Mike Davis',
-        candidateEmail: 'mike.davis@email.com',
-        candidatePhone: '+1 (555) 345-6789',
-        candidateLocation: 'Austin, TX',
-        jobTitle: 'UI/UX Designer',
-        appliedDate: '2025-07-28',
-        status: 'shortlisted',
-        experience: 4,
-        skills: ['Figma', 'Adobe XD', 'User Research', 'Prototyping'],
-        resumeUrl: '#',
-        rating: 5
-      },
-      {
-        id: 4,
-        candidateName: 'Lisa Chen',
-        candidateEmail: 'lisa.chen@email.com',
-        candidatePhone: '+1 (555) 456-7890',
-        candidateLocation: 'Seattle, WA',
-        jobTitle: 'Senior Frontend Developer',
-        appliedDate: '2025-07-25',
-        status: 'rejected',
-        experience: 2,
-        skills: ['React', 'Vue.js', 'CSS', 'HTML'],
-        resumeUrl: '#',
-        rating: 2
+    const fetchApplications = async () => {
+      if (!isAuthenticated || !user || user.role !== 'hr') {
+        setLoading(false);
+        return;
       }
-    ];
-    
-    setTimeout(() => {
-      setApplications(mockApplications);
-      setLoading(false);
-    }, 1000);
-  }, []);
+
+      try {
+        const response = await applicationsAPI.getCompanyApplications();
+        if (response.data && response.data.success) {
+          setApplications(response.data.applications || []);
+          setStats(response.data.stats || {
+            total: 0,
+            pending: 0,
+            interviewed: 0,
+            shortlisted: 0,
+            hired: 0,
+            rejected: 0
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching applications:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchApplications();
+  }, [isAuthenticated, user]);
+
+  // Handle status change
+  const handleStatusChange = async (applicationId, newStatus) => {
+    try {
+      // This would be implemented when you have an update application status endpoint
+      console.log(`Updating application ${applicationId} to status: ${newStatus}`);
+      // Update local state for now
+      setApplications(prev => prev.map(app => 
+        app._id === applicationId ? { ...app, status: newStatus } : app
+      ));
+    } catch (error) {
+      console.error('Error updating application status:', error);
+    }
+  };
+
+  // Handle resume download
+  const handleResumeDownload = (resumeUrl) => {
+    if (resumeUrl) {
+      window.open(resumeUrl, '_blank');
+    }
+  };
 
   const getStatusBadge = (status) => {
     const baseClasses = "px-3 py-1 rounded-full text-xs font-medium";
@@ -134,14 +129,20 @@ const HRApplications = () => {
     ));
   };
 
-  const uniqueJobs = [...new Set(applications.map(app => app.jobTitle))];
+  const uniqueJobs = [...new Set(applications.map(app => 
+    app.job?.title || 'Unknown Position'
+  ))];
   
   const filteredApplications = applications.filter(app => {
-    const matchesSearch = app.candidateName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         app.candidateEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         app.jobTitle.toLowerCase().includes(searchTerm.toLowerCase());
+    const candidateName = app.user?.name || 'Unknown';
+    const candidateEmail = app.user?.email || '';
+    const jobTitle = app.job?.title || 'Unknown Position';
+    
+    const matchesSearch = candidateName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         candidateEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         jobTitle.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || app.status === statusFilter;
-    const matchesJob = jobFilter === 'all' || app.jobTitle === jobFilter;
+    const matchesJob = jobFilter === 'all' || jobTitle === jobFilter;
     return matchesSearch && matchesStatus && matchesJob;
   });
 
@@ -184,7 +185,7 @@ const HRApplications = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Pending</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {applications.filter(app => app.status === 'pending').length}
+                  {stats.pending || 0}
                 </p>
               </div>
             </div>
@@ -195,7 +196,7 @@ const HRApplications = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Interviews</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {applications.filter(app => app.status === 'interview').length}
+                  {stats.interviewed || 0}
                 </p>
               </div>
             </div>
@@ -206,7 +207,7 @@ const HRApplications = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Shortlisted</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {applications.filter(app => app.status === 'shortlisted').length}
+                  {stats.shortlisted || 0}
                 </p>
               </div>
             </div>
@@ -217,7 +218,7 @@ const HRApplications = () => {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500">Hired</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {applications.filter(app => app.status === 'hired').length}
+                  {stats.hired || 0}
                 </p>
               </div>
             </div>
@@ -247,7 +248,8 @@ const HRApplications = () => {
                 >
                   <option value="all">All Status</option>
                   <option value="pending">Pending</option>
-                  <option value="interview">Interview</option>
+                  <option value="reviewed">Reviewed</option>
+                  <option value="interviewed">Interviewed</option>
                   <option value="shortlisted">Shortlisted</option>
                   <option value="rejected">Rejected</option>
                   <option value="hired">Hired</option>
@@ -280,7 +282,7 @@ const HRApplications = () => {
           ) : (
             <ul className="divide-y divide-gray-200">
               {filteredApplications.map((application) => (
-                <li key={application.id}>
+                <li key={application._id || application.id}>
                   <div className="px-6 py-4 hover:bg-gray-50">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
@@ -290,8 +292,8 @@ const HRApplications = () => {
                         <div className="flex-1">
                           <div className="flex items-center justify-between">
                             <div>
-                              <h3 className="text-lg font-medium text-gray-900">{application.candidateName}</h3>
-                              <p className="text-sm text-gray-600">{application.jobTitle}</p>
+                              <h3 className="text-lg font-medium text-gray-900">{application.user?.name || 'Unknown'}</h3>
+                              <p className="text-sm text-gray-600">{application.job?.title || 'Unknown Position'}</p>
                             </div>
                             <div className="flex items-center space-x-2">
                               <span className={getStatusBadge(application.status)}>
@@ -307,27 +309,27 @@ const HRApplications = () => {
                           <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 text-sm text-gray-500">
                             <div className="flex items-center">
                               <Mail className="w-4 h-4 mr-1" />
-                              {application.candidateEmail}
+                              {application.user?.email || 'N/A'}
                             </div>
                             <div className="flex items-center">
                               <Phone className="w-4 h-4 mr-1" />
-                              {application.candidatePhone}
+                              {application.user?.phone || 'N/A'}
                             </div>
                             <div className="flex items-center">
                               <MapPin className="w-4 h-4 mr-1" />
-                              {application.candidateLocation}
+                              {application.user?.location || 'N/A'}
                             </div>
                             <div className="flex items-center">
                               <Briefcase className="w-4 h-4 mr-1" />
-                              {application.experience} years exp.
+                              {application.yearsOfExperience || 0} years exp.
                             </div>
                           </div>
                           <div className="mt-2 flex items-center text-sm text-gray-500">
                             <Calendar className="w-4 h-4 mr-1" />
-                            Applied {new Date(application.appliedDate).toLocaleDateString()}
+                            Applied {new Date(application.appliedAt).toLocaleDateString()}
                           </div>
                           <div className="mt-2 flex flex-wrap gap-1">
-                            {application.skills.slice(0, 4).map((skill, index) => (
+                            {(application.skills || []).slice(0, 4).map((skill, index) => (
                               <span
                                 key={index}
                                 className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800"
@@ -335,9 +337,9 @@ const HRApplications = () => {
                                 {skill}
                               </span>
                             ))}
-                            {application.skills.length > 4 && (
+                            {(application.skills || []).length > 4 && (
                               <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                                +{application.skills.length - 4} more
+                                +{(application.skills || []).length - 4} more
                               </span>
                             )}
                           </div>
@@ -345,17 +347,25 @@ const HRApplications = () => {
                       </div>
                       <div className="flex items-center space-x-2">
                         <button
+                          onClick={() => handleResumeDownload(application.resumeUrl)}
                           className="text-gray-400 hover:text-gray-600"
                           title="Download Resume"
+                          disabled={!application.resumeUrl}
                         >
                           <Download className="w-5 h-5" />
                         </button>
-                        <button
-                          className="text-blue-600 hover:text-blue-900"
-                          title="View Details"
+                        <select
+                          value={application.status}
+                          onChange={(e) => handleStatusChange(application._id, e.target.value)}
+                          className="text-sm border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                          <Eye className="w-5 h-5" />
-                        </button>
+                          <option value="pending">Pending</option>
+                          <option value="reviewed">Reviewed</option>
+                          <option value="interviewed">Interviewed</option>
+                          <option value="shortlisted">Shortlisted</option>
+                          <option value="hired">Hired</option>
+                          <option value="rejected">Rejected</option>
+                        </select>
                       </div>
                     </div>
                   </div>

@@ -109,7 +109,7 @@ const ContactPage = () => {
 
     try {
       // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await api.sendContactForm(formData);
       
       setSuccess(true);
       setFormData({

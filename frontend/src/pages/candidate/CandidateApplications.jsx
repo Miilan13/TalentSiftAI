@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import { applicationsAPI } from '../../services/api';
 import { 
   FileText, 
   Clock, 
@@ -14,47 +14,24 @@ import {
 } from 'lucide-react';
 
 const CandidateApplications = () => {
-  const { user } = useAuth();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
 
-  // Mock data - replace with API call
   useEffect(() => {
-    const mockApplications = [
-      {
-        id: 1,
-        jobTitle: 'Senior Frontend Developer',
-        company: 'TechCorp Inc',
-        location: 'New York, NY',
-        appliedDate: '2025-08-01',
-        status: 'pending',
-        salary: '$80,000 - $120,000'
-      },
-      {
-        id: 2,
-        jobTitle: 'React Developer',
-        company: 'StartupXYZ',
-        location: 'San Francisco, CA',
-        appliedDate: '2025-07-28',
-        status: 'interview',
-        salary: '$70,000 - $100,000'
-      },
-      {
-        id: 3,
-        jobTitle: 'Full Stack Engineer',
-        company: 'MegaCorp',
-        location: 'Austin, TX',
-        appliedDate: '2025-07-25',
-        status: 'rejected',
-        salary: '$90,000 - $130,000'
+    const fetchApplications = async () => {
+      try {
+        setLoading(true);
+        const response = await applicationsAPI.getMyApplications();
+        setApplications(response.data.applications);
+      } catch (error) {
+        console.error('Error fetching applications:', error);
+      } finally {
+        setLoading(false);
       }
-    ];
-    
-    setTimeout(() => {
-      setApplications(mockApplications);
-      setLoading(false);
-    }, 1000);
+    };
+
+    fetchApplications();
   }, []);
 
   const getStatusIcon = (status) => {

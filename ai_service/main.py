@@ -5,21 +5,31 @@ import io
 import spacy
 from spacy.matcher import Matcher
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pypdf import PdfReader
 import docx
 
 # --- Setup ---
-# Load a larger, more capable spaCy model for better entity recognition
-# Run this in your terminal first: python -m spacy download en_core_web_lg
+# Load spaCy model for entity recognition
+# Run this in your terminal first: python -m spacy download en_core_web_sm
 try:
-    nlp = spacy.load("en_core_web_lg")
+    nlp = spacy.load("en_core_web_sm")
 except OSError:
-    print("Downloading 'en_core_web_lg' model...")
+    print("Downloading 'en_core_web_sm' model...")
     from spacy.cli import download
-    download("en_core_web_lg")
-    nlp = spacy.load("en_core_web_lg")
+    download("en_core_web_sm")
+    nlp = spacy.load("en_core_web_sm")
 
-app = FastAPI(title="TalentSift AI Service - Advanced Model")
+app = FastAPI(title="TalentSift AI Service")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- Keyword Lists for Extraction ---
 SKILLS_KEYWORDS = [
@@ -53,7 +63,7 @@ def extract_text_from_docx(file_contents: bytes) -> str:
 def extract_personal_info(text: str, doc: spacy.tokens.doc.Doc):
     name = next((ent.text for ent in doc.ents if ent.label_ == "PERSON"), None)
     email = re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", text)
-    phone = re.search(r"(\(?\d{3}\)?[-.\s]?)?(\d{3}[-.\s]?\d{4})", text)
+    phone = re.search(r"(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}", text)
     linkedin = re.search(r"linkedin\.com/in/[\w-]+", text)
     github = re.search(r"github\.com/[\w-]+", text)
     location = next((ent.text for ent in doc.ents if ent.label_ == "GPE"), None)
@@ -174,3 +184,8 @@ async def analyze_resume(file: UploadFile = File(...)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
+# Run the server when script is executed directly
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

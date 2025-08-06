@@ -29,6 +29,9 @@ import HRManageJobs from './pages/hr/HRManageJobs';
 import HRApplications from './pages/hr/HRApplications';
 import HRCompanyProfile from './pages/hr/HRCompanyProfile';
 
+// AI Pages
+import AIAnalysisPage from './pages/AIAnalysisPage';
+
 // Protected Route Component
 import ProtectedRoute from './components/common/ProtectedRoute';
 
@@ -108,6 +111,16 @@ function App() {
                 element={
                   <ProtectedRoute allowedRoles={['hr']}>
                     <HRCompanyProfile />
+                  </ProtectedRoute>
+                }
+              />
+              
+              {/* AI Tools Routes */}
+              <Route
+                path="/ai/analyze"
+                element={
+                  <ProtectedRoute allowedRoles={['hr']}>
+                    <AIAnalysisPage />
                   </ProtectedRoute>
                 }
               />

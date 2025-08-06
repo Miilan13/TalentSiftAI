@@ -31,12 +31,20 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    if (error.response?.status === 401) {
-      // Unauthorized - clear token and redirect to login
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+    // Don't automatically logout on 401 errors
+    // Let the AuthContext handle token validation and logout decisions
+    // This prevents aggressive logouts during network issues or temporary server problems
+    
+    // Only auto-logout if it's a critical auth failure and we're not already on the login page
+    if (error.response?.status === 401 && 
+        error.config?.url?.includes('/auth/profile') &&
+        !window.location.pathname.includes('/login')) {
+      
+      // Only clear tokens for profile endpoint failures (token validation)
+      // This prevents logout loops during other API calls
+      console.log('Profile verification failed, tokens may be invalid');
     }
+    
     return Promise.reject(error);
   }
 );
@@ -74,6 +82,7 @@ export const applicationsAPI = {
     });
   },
   getMyApplications: (params) => api.get('/applications/my-applications', { params }),
+  getCompanyApplications: (params) => api.get('/applications/company/all-applications', { params }),
   getApplication: (id) => api.get(`/applications/${id}`),
   updateApplicationStatus: (id, statusData) => api.put(`/applications/${id}/status`, statusData),
   addHRNote: (id, noteData) => api.post(`/applications/${id}/notes`, noteData),

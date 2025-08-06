@@ -1,17 +1,39 @@
 // Authentication Context
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useReducer, useEffect } from 'react';
 import { authAPI, handleApiError } from '../services/api';
 
 const AuthContext = createContext();
 
 // Initial state
-const initialState = {
-  user: null,
-  token: null,
-  isAuthenticated: false,
-  isLoading: true,
-  error: null,
+const getInitialState = () => {
+  const token = localStorage.getItem('token');
+  const userData = localStorage.getItem('user');
+  
+  if (token && userData) {
+    try {
+      const user = JSON.parse(userData);
+      return {
+        user,
+        token,
+        isAuthenticated: true,
+        isLoading: true, // Still loading to verify token
+        error: null,
+      };
+    } catch {
+      // If parsing fails, use default initial state
+    }
+  }
+  
+  return {
+    user: null,
+    token: null,
+    isAuthenticated: false,
+    isLoading: true,
+    error: null,
+  };
 };
+
+const initialState = getInitialState();
 
 // Auth reducer
 const authReducer = (state, action) => {
@@ -39,6 +61,11 @@ const authReducer = (state, action) => {
         isAuthenticated: false,
         isLoading: false,
         error: action.payload,
+      };
+    case 'SET_LOADING':
+      return {
+        ...state,
+        isLoading: action.payload,
       };
     case 'LOGOUT':
       return {
@@ -76,17 +103,49 @@ export const AuthProvider = ({ children }) => {
 
       if (token && userData) {
         try {
-          // Verify token is still valid
-          const response = await authAPI.getProfile();
+          // Parse stored user data
+          const parsedUser = JSON.parse(userData);
+          
+          // Set authentication state immediately with stored data
           dispatch({
             type: 'AUTH_SUCCESS',
             payload: {
-              user: response.data.user,
+              user: parsedUser,
               token: token,
             },
           });
-        } catch (error) {
-          // Token invalid, clear storage
+
+          // Verify token is still valid in background
+          try {
+            const response = await authAPI.getProfile();
+            
+            // Update with fresh user data from API if different
+            if (JSON.stringify(response.data.user) !== JSON.stringify(parsedUser)) {
+              localStorage.setItem('user', JSON.stringify(response.data.user));
+              dispatch({
+                type: 'UPDATE_USER',
+                payload: response.data.user,
+              });
+            }
+            
+            // Token is valid, set loading to false
+            dispatch({ type: 'SET_LOADING', payload: false });
+          } catch (verifyError) {
+            console.log('Background token verification failed:', verifyError);
+            // Only logout if it's a 401/403 error (unauthorized)
+            if (verifyError.response?.status === 401 || verifyError.response?.status === 403) {
+              console.log('Token is invalid, logging out');
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              dispatch({ type: 'AUTH_FAILURE', payload: null });
+            } else {
+              // For other errors (network, server), keep user logged in but stop loading
+              dispatch({ type: 'SET_LOADING', payload: false });
+            }
+          }
+        } catch (parseError) {
+          console.log('Error parsing stored user data:', parseError);
+          // If we can't parse stored data, clear it
           localStorage.removeItem('token');
           localStorage.removeItem('user');
           dispatch({ type: 'AUTH_FAILURE', payload: null });
@@ -182,7 +241,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await authAPI.logout();
-    } catch (error) {
+    } catch {
       // Continue with logout even if API call fails
     } finally {
       localStorage.removeItem('token');
@@ -229,15 +288,6 @@ export const AuthProvider = ({ children }) => {
       {children}
     </AuthContext.Provider>
   );
-};
-
-// Custom hook to use auth context
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };
 
 export default AuthContext;

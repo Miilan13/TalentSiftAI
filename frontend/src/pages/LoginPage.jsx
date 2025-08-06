@@ -1,7 +1,7 @@
 // Login Page Component
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { Eye, EyeOff, Mail, Lock, Building2, AlertCircle, Loader2 } from 'lucide-react';
 
 const LoginPage = () => {

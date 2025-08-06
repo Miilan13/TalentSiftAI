@@ -1,8 +1,8 @@
 // Candidate Dashboard Component
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
-import { jobsAPI, applicationsAPI } from '../../services/api';
+import { useAuth } from '../../hooks/useAuth';
+import { jobsAPI, applicationsAPI, authAPI } from '../../services/api';
 import { 
   User, 
   Briefcase, 
@@ -34,70 +34,114 @@ const CandidateDashboard = () => {
   const [recentApplications, setRecentApplications] = useState([]);
   const [suggestedJobs, setSuggestedJobs] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [profileCompletion, setProfileCompletion] = useState({
+    percentage: 0,
+    completedItems: [],
+    missingItems: []
+  });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchDashboardData();
+  const calculateProfileCompletion = useCallback((userData) => {
+    const requirements = [
+      { key: 'name', label: 'Basic Profile Info', check: () => userData?.name },
+      { key: 'phone', label: 'Phone Number', check: () => userData?.phone },
+      { key: 'skills', label: 'Skills Added', check: () => userData?.skills && userData.skills.length > 0 },
+      { key: 'experience', label: 'Experience Details', check: () => userData?.experience && userData.experience.length > 0 },
+      { key: 'location', label: 'Location Details', check: () => userData?.location && (userData.location.city || userData.location.state) },
+      { key: 'resume', label: 'Resume Uploaded', check: () => userData?.resume && userData.resume.filename }
+    ];
+
+    const completedItems = requirements.filter(req => req.check());
+    const missingItems = requirements.filter(req => !req.check());
+    const percentage = Math.round((completedItems.length / requirements.length) * 100);
+
+    return {
+      percentage,
+      completedItems: completedItems.map(item => item.label),
+      missingItems: missingItems.map(item => item.label)
+    };
   }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       
+      // Fetch user profile for completion calculation
+      const userResponse = await authAPI.getProfile();
+      const userData = userResponse.data.user;
+      
+      // Calculate profile completion
+      const completion = calculateProfileCompletion(userData);
+      setProfileCompletion(completion);
+      
       // Fetch applications
-      const applicationsResponse = await applicationsAPI.getCandidateApplications();
-      if (applicationsResponse.success) {
-        const applications = applicationsResponse.data;
-        setRecentApplications(applications.slice(0, 5));
-        
-        // Calculate stats
-        setStats({
-          totalApplications: applications.length,
-          pendingApplications: applications.filter(app => app.status === 'pending').length,
-          interviewsScheduled: applications.filter(app => app.status === 'interview').length,
-          profileViews: Math.floor(Math.random() * 100) + 20 // Mock data
-        });
-      }
+      const applicationsResponse = await applicationsAPI.getMyApplications();
+      const applications = applicationsResponse.data.applications || [];
+      setRecentApplications(applications.slice(0, 5));
+      
+      // Calculate stats from actual data
+      setStats({
+        totalApplications: applications.length,
+        pendingApplications: applications.filter(app => app.status === 'applied' || app.status === 'pending').length,
+        interviewsScheduled: applications.filter(app => app.status === 'interview').length,
+        profileViews: userData?.profileViews || 0 // Use real data or 0
+      });
 
       // Fetch suggested jobs
       const jobsResponse = await jobsAPI.getJobs({ limit: 6 });
-      if (jobsResponse.success) {
-        setSuggestedJobs(jobsResponse.data.jobs);
-      }
+      setSuggestedJobs(jobsResponse.data.jobs || []);
 
-      // Mock notifications
-      setNotifications([
-        {
-          id: 1,
+      // Generate notifications based on real application data
+      const recentNotifications = applications
+        .slice(0, 3)
+        .map(app => ({
+          id: app._id,
           type: 'application_update',
           title: 'Application Status Update',
-          message: 'Your application for Frontend Developer at TechCorp has been reviewed',
-          time: '2 hours ago',
+          message: `Your application for ${app.job?.title} is ${app.status}`,
+          time: formatTimeAgo(app.createdAt),
           read: false
-        },
-        {
-          id: 2,
+        }));
+
+      // Add a job match notification if there are suggested jobs
+      if (jobsResponse.data.jobs && jobsResponse.data.jobs.length > 0) {
+        recentNotifications.push({
+          id: 'job_match',
           type: 'new_job',
-          title: 'New Job Match',
-          message: 'We found 3 new jobs that match your profile',
-          time: '1 day ago',
+          title: 'New Job Matches',
+          message: `We found ${jobsResponse.data.jobs.length} new jobs that match your profile`,
+          time: 'Today',
           read: false
-        },
-        {
-          id: 3,
-          type: 'interview',
-          title: 'Interview Scheduled',
-          message: 'Interview scheduled for Software Engineer position at StartupXYZ',
-          time: '2 days ago',
-          read: true
-        }
-      ]);
+        });
+      }
+
+      setNotifications(recentNotifications);
 
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
     }
+  }, [calculateProfileCompletion]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  const formatTimeAgo = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = now - date;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+
+    if (diffDays === 0) {
+      if (diffHours === 0) return 'Just now';
+      return `${diffHours} hours ago`;
+    }
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString();
   };
 
   const getApplicationStatusIcon = (status) => {
@@ -297,15 +341,19 @@ const CandidateDashboard = () => {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <h3 className="font-semibold text-gray-900 mb-1">{job.title}</h3>
-                          <p className="text-sm text-gray-600 mb-2">{job.company}</p>
+                          <p className="text-sm text-gray-600 mb-2">{job.company?.name || 'Company Name'}</p>
                           <div className="flex items-center space-x-4 text-sm text-gray-500 mb-3">
                             <div className="flex items-center">
                               <MapPin className="w-4 h-4 mr-1" />
-                              {job.location}
+                              {job.location?.remote ? 'Remote' : 
+                               [job.location?.city, job.location?.state, job.location?.country]
+                                 .filter(Boolean).join(', ') || 'Location not specified'}
                             </div>
                             <div className="flex items-center">
                               <DollarSign className="w-4 h-4 mr-1" />
-                              {job.salary ? `$${job.salary.min}k - $${job.salary.max}k` : 'Salary not specified'}
+                              {job.salary?.min && job.salary?.max 
+                                ? `${job.salary.currency || 'INR'} ${job.salary.min}k - ${job.salary.max}k` 
+                                : 'Salary not specified'}
                             </div>
                           </div>
                           <p className="text-sm text-gray-700 mb-3 line-clamp-2">{job.description}</p>
@@ -338,29 +386,28 @@ const CandidateDashboard = () => {
               <div className="mb-4">
                 <div className="flex items-center justify-between text-sm mb-2">
                   <span className="text-gray-600">Progress</span>
-                  <span className="font-medium text-gray-900">75%</span>
+                  <span className="font-medium text-gray-900">{profileCompletion.percentage}%</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className="bg-primary-600 h-2 rounded-full" style={{ width: '75%' }}></div>
+                  <div 
+                    className="bg-primary-600 h-2 rounded-full transition-all duration-300" 
+                    style={{ width: `${profileCompletion.percentage}%` }}
+                  ></div>
                 </div>
               </div>
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Resume uploaded</span>
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Skills added</span>
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Experience details</span>
-                  <XCircle className="w-4 h-4 text-red-500" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Portfolio links</span>
-                  <XCircle className="w-4 h-4 text-red-500" />
-                </div>
+                {profileCompletion.completedItems.map((item, index) => (
+                  <div key={`completed-${index}`} className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">{item}</span>
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                  </div>
+                ))}
+                {profileCompletion.missingItems.map((item, index) => (
+                  <div key={`missing-${index}`} className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">{item}</span>
+                    <XCircle className="w-4 h-4 text-red-500" />
+                  </div>
+                ))}
               </div>
               <Link
                 to="/candidate/profile"

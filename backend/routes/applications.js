@@ -5,6 +5,7 @@ const multer = require('multer');
 const {
   applyForJob,
   getMyApplications,
+  getCompanyApplications,
   getApplication,
   updateApplicationStatus,
   addHRNote,
@@ -36,6 +37,9 @@ router.post('/apply/:jobId', protect, candidateOnly, checkSubscriptionLimits, up
 
 // @route   GET /api/applications/my-applications
 router.get('/my-applications', protect, candidateOnly, getMyApplications);
+
+// @route   GET /api/applications/company/all-applications
+router.get('/company/all-applications', protect, hrOnly, getCompanyApplications);
 
 // @route   GET /api/applications/:id
 router.get('/:id', protect, getApplication);

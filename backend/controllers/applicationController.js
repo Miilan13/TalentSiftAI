@@ -476,9 +476,73 @@ const generateRecommendations = (skillMatch, experienceMatch, job) => {
   return recommendations;
 };
 
+// @desc    Get all applications for company (HR only)
+// @route   GET /api/applications/company/all-applications
+// @access  Private (HR only)
+const getCompanyApplications = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      status,
+      sortBy = 'createdAt',
+      order = 'desc'
+    } = req.query;
+
+    const query = { company: req.user.company._id };
+    if (status) query.status = status;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    const sortOrder = order === 'desc' ? -1 : 1;
+    const sortObj = {};
+    sortObj[sortBy] = sortOrder;
+
+    const applications = await Candidate.find(query)
+      .populate('user', 'name email phone location profileImage')
+      .populate('job', 'title description location salary employmentType')
+      .sort(sortObj)
+      .skip(skip)
+      .limit(limitNum);
+
+    const total = await Candidate.countDocuments(query);
+
+    // Calculate stats
+    const allApplications = await Candidate.find({ company: req.user.company._id });
+    const stats = {
+      total: allApplications.length,
+      pending: allApplications.filter(app => app.status === 'applied' || app.status === 'pending').length,
+      shortlisted: allApplications.filter(app => app.status === 'shortlisted').length,
+      interviewed: allApplications.filter(app => app.status === 'interview').length,
+      hired: allApplications.filter(app => app.status === 'hired').length,
+      rejected: allApplications.filter(app => app.status === 'rejected').length
+    };
+
+    res.json({
+      success: true,
+      count: applications.length,
+      total,
+      totalPages: Math.ceil(total / limitNum),
+      currentPage: pageNum,
+      stats,
+      applications
+    });
+
+  } catch (error) {
+    console.error('Get company applications error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+};
+
 module.exports = {
   applyForJob,
   getMyApplications,
+  getCompanyApplications,
   getApplication,
   updateApplicationStatus,
   addHRNote,

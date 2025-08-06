@@ -21,28 +21,28 @@ const AboutPage = () => {
     {
       name: 'Sarah Chen',
       role: 'CEO & Co-Founder',
-      image: '/api/placeholder/300/300',
+      image: '/images/team/sarah.jpg',
       bio: 'Former VP of Engineering at Google with 15+ years in AI and machine learning.',
       linkedin: '#'
     },
     {
       name: 'Michael Rodriguez',
       role: 'CTO & Co-Founder',
-      image: '/api/placeholder/300/300',
+      image: '/images/team/michael.jpg',
       bio: 'Ex-Amazon AI researcher specializing in natural language processing and recruitment technology.',
       linkedin: '#'
     },
     {
       name: 'Emily Johnson',
       role: 'Head of Product',
-      image: '/api/placeholder/300/300',
+      image: '/images/team/emily.jpg',
       bio: 'Product leader from LinkedIn with deep expertise in HR technology and user experience.',
       linkedin: '#'
     },
     {
       name: 'David Kim',
       role: 'Head of AI',
-      image: '/api/placeholder/300/300',
+      image: '/images/team/david.jpg',
       bio: 'PhD in Computer Science from MIT, previously led AI initiatives at Microsoft.',
       linkedin: '#'
     }
