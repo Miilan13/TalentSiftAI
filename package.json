@@ -1,0 +1,38 @@
+{
+  "name": "talentsiftai",
+  "version": "1.0.0",
+  "description": "TalentSift AI - MERN Stack Application for AI-powered resume screening",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "nodemon backend/server.js",
+    "test": "node backend/test-server.js",
+    "test:server": "node backend/test-server.js",
+    "seed": "node backend/seed.js"
+  },
+  "keywords": [
+    "mern",
+    "ai",
+    "resume",
+    "screening",
+    "job",
+    "talent"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.11.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "form-data": "^4.0.4",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.17.0",
+    "multer": "^2.0.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
